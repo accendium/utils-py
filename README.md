@@ -17,7 +17,7 @@ Download all images from a given URL:
 python scrape.py https://example.com/
 ```
 
-Images are saved to the `output/` directory.
+Images are saved to the `output/` directory. If you're scraping code images, copies a prompt to clipboard for easy LLM formatting.
 
 ---
 

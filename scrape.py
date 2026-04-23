@@ -1,9 +1,10 @@
 import sys
 import os
+import pyperclip
+import requests
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
-
-import requests
+from concurrent.futures import ThreadPoolExecutor
 
 
 IMAGE_EXTENSIONS = (
@@ -19,6 +20,19 @@ IMAGE_EXTENSIONS = (
     ".tiff",
     ".avif",
 )
+
+
+TEXT_COPY = """Parse the following images and output them into code blocks. Examples should go under an "Examples" section and problems under "Problems." Code blocks should be in the order: {order}. At the bottom have a section "Micro" which has a code block of a command to open all the files in micro **in order** ("micro first.cpp second.cpp third.cpp...") top to bottom in the order described here. A section should look like this minimal schema:
+
+**Examples**
+
+```cpp
+// code goes here
+```
+
+```cpp
+// another code example here
+```"""
 
 
 def looks_like_image(url: str) -> bool:
@@ -71,7 +85,7 @@ def download_image(url: str, output: str = "output") -> bool:
 
         if not any(filename.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
             filename += ".jpg"
-        
+
         os.makedirs(output, exist_ok=True)
         filepath = os.path.join(output, filename)
 
@@ -86,13 +100,24 @@ def download_image(url: str, output: str = "output") -> bool:
         return False
 
 
+def copy_template_prompt(names: list[str]) -> None:
+    copy = TEXT_COPY.format(order=", ".join(names))
+    pyperclip.copy(copy)
+    print(f"Copied the following to clipboard:\n\n {copy}")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
-        print("Usage: python scrape.py <page_url>")
+        print(f"Usage: python {sys.argv[0]} <page_url>")
         raise SystemExit(1)
 
-    for image_url in get_image_urls(sys.argv[1]):
-        download_image(image_url)
+    names: list[str] = []
+    image_urls = [img for img in get_image_urls(sys.argv[1]) if "favicon" not in img]
+    with ThreadPoolExecutor(8) as ex:
+        for image_url, ok in zip(image_urls, ex.map(download_image, image_urls)):
+            if ok:
+                names.append(image_url.rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    copy_template_prompt(names)
 
 
 if __name__ == "__main__":
