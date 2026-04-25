@@ -1,5 +1,5 @@
-import sys
 import os
+import argparse
 import pyperclip
 import requests
 from html.parser import HTMLParser
@@ -100,24 +100,32 @@ def download_image(url: str, output: str = "output") -> bool:
         return False
 
 
-def copy_template_prompt(names: list[str]) -> None:
+def copy_template_prompt(names: list[str], output: str = "output") -> None:
     copy = TEXT_COPY.format(order=", ".join(names))
     pyperclip.copy(copy)
-    print(f"Copied the following to clipboard:\n\n {copy}")
+    filepath = os.path.join(output, "prompt.txt")
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(copy)
+    print(f"Copied the following to clipboard and saved to txt:\n\n {copy}\n")
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print(f"Usage: python {sys.argv[0]} <page_url>")
-        raise SystemExit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("page_url")
+    parser.add_argument("-o", "--output", default="output")
+    args = parser.parse_args()
 
     names: list[str] = []
-    image_urls = [img for img in get_image_urls(sys.argv[1]) if "favicon" not in img]
+    image_urls = [img for img in get_image_urls(args.page_url) if "favicon" not in img]
     with ThreadPoolExecutor(8) as ex:
-        for image_url, ok in zip(image_urls, ex.map(download_image, image_urls)):
+        for image_url, ok in zip(
+            image_urls, ex.map(download_image, image_urls, [args.output] * len(image_urls))
+        ):
             if ok:
                 names.append(image_url.rsplit("/", 1)[-1].rsplit(".", 1)[0])
-    copy_template_prompt(names)
+    
+    copy_template_prompt(names, args.output)
+    os.startfile(os.path.abspath(args.output))
 
 
 if __name__ == "__main__":
